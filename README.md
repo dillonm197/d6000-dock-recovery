@@ -83,7 +83,7 @@ To see each port's state right now:
 
 - It reads each USB-C port's state from macOS 4 times a second. While it is only watching it
   doesn't talk to any hardware, and it uses well under 1% of one CPU core.
-- It acts only when a port re-attaches 3 times within 2 seconds with no dock showing up and no USB,
+- It acts only when a port re-attaches 3 times within 2.5 seconds with no dock showing up and no USB,
   display or Thunderbolt connection active on it, and only if that port's controller serves that
   one port. A normal plug-in or a fumbled replug never triggers it.
 - It then sends one restart to that port's controller. It never writes firmware, never changes
@@ -109,8 +109,8 @@ kept.
   [open a compatibility report](https://github.com/dillonm197/d6000-dock-recovery/issues/new?template=compatibility_report.yml)
   with the `--list` output.
 - **The dock stayed amber and the log shows no restart.** Look at the attach lines for that port.
-  If they are more than about 1 second apart, the loop is slower than the default detection window
-  catches; try `--detect-window 2.5` (see [Configuration](docs/configuration.md)) and please report
+  If they are more than about 1.1 seconds apart, the loop is slower than the default detection window
+  catches; try `--detect-window 3` (see [Configuration](docs/configuration.md)) and please report
   it.
 - **It restarted a port when nothing was wrong.** Please
   [report the false positive](https://github.com/dillonm197/d6000-dock-recovery/issues/new?template=false_positive.yml)

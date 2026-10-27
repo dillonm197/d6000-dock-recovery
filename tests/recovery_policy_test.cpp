@@ -19,19 +19,34 @@ namespace
 
 // A slow, conservative tuning used to test the policy's mechanics independently of the defaults.
 const Tuning kConservative{.windowSeconds = 8, .minAttaches = 4, .verifySeconds = 10, .cooldownSeconds = 60};
+// An explicit window for the boundary tests, so they keep testing it if the default changes.
+const Tuning kTwoSecondWindow{.windowSeconds = 2};
 
 std::uint64_t at(int base, int offset)
 {
     return static_cast<std::uint64_t>(base + offset);
 }
 
-// Polls every 250 ms from 0 to `until` with attaches at the given times, all guards passing and no
-// dock. Returns the first time the policy asks for a restart, or -1.
-double firstTrigger(RecoveryPolicy policy, const std::vector<double> &attaches, double until)
+// A sustained loop: an attach every `cadence` seconds from `first` for a minute.
+std::vector<double> loopFrom(double first, double cadence)
 {
-    for (int poll = 0; poll * 0.25 <= until; ++poll)
+    std::vector<double> attaches;
+    for (double attach = first; attach < first + 60; attach += cadence)
     {
-        const double now = poll * 0.25;
+        attaches.push_back(attach);
+    }
+    return attaches;
+}
+
+// Polls from 0 to `until`, the intervals between polls cycling through `polls`, with attaches at
+// the given times, all guards passing and no dock. Returns the first time the policy asks for a
+// restart, or -1.
+double firstTrigger(RecoveryPolicy policy, const std::vector<double> &attaches, double until,
+                    const std::vector<double> &polls = {0.25})
+{
+    double now = 0;
+    for (std::size_t poll = 0; now <= until; now += polls[poll++ % polls.size()])
+    {
         std::uint64_t count = 50;
         for (const double attach : attaches)
         {
@@ -192,19 +207,54 @@ TEST(RecoveryPolicy, RecentFailurePauseBlocks)
     }
 }
 
-TEST(RecoveryPolicy, DefaultsCatchAStuckLoopWithinTwoSecondsInEveryPhase)
+TEST(RecoveryPolicy, DefaultsCatchAStuckLoopOnItsThirdAttachInEveryPhase)
 {
     for (int phase = 0; phase < 20; ++phase)
     {
         const double first = 3.0 + phase * 0.0425;
-        std::vector<double> loop;
-        for (int n = 0; n < 12; ++n)
-        {
-            loop.push_back(first + n * 0.85);
-        }
-        const double hit = firstTrigger(RecoveryPolicy{}, loop, 20);
+        const double hit = firstTrigger(RecoveryPolicy{}, loopFrom(first, 0.85), 20);
         EXPECT_GE(hit, first + 1.70) << "phase " << phase;
-        EXPECT_LE(hit, first + 2.25) << "phase " << phase;
+        EXPECT_LE(hit, first + 1.95) << "phase " << phase;
+    }
+}
+
+TEST(RecoveryPolicy, DefaultsCatchObservedLoopsWhenPollsRunLate)
+{
+    // The watcher sleeps 250 ms after each pass, so real polls are a little further apart and
+    // drift against the loop. Loops seen on the tested Macs are caught by the poll after their
+    // third attach; slower ones up to 1.1 s apart are caught within a minute.
+    const std::vector<std::vector<double>> pollings{{0.25}, {0.251}, {0.26}, {0.3}, {0.25, 0.27, 0.3, 0.26, 0.29}};
+    for (const std::vector<double> &polls : pollings)
+    {
+        for (int phase = 0; phase < 20; ++phase)
+        {
+            for (const double cadence : {0.65, 0.85, 0.91})
+            {
+                const double first = 5.0 + phase * cadence / 20;
+                const double hit = firstTrigger(RecoveryPolicy{}, loopFrom(first, cadence), 60, polls);
+                EXPECT_GE(hit, first + 2 * cadence) << "poll " << polls.front() << ", cadence " << cadence;
+                EXPECT_LE(hit, first + 2 * cadence + 0.31) << "poll " << polls.front() << ", cadence " << cadence;
+            }
+            for (const double cadence : {1.0, 1.1})
+            {
+                const double first = 5.0 + phase * cadence / 20;
+                EXPECT_GT(firstTrigger(RecoveryPolicy{}, loopFrom(first, cadence), 60, polls), 0)
+                    << "poll " << polls.front() << ", cadence " << cadence;
+            }
+        }
+    }
+}
+
+TEST(RecoveryPolicy, DefaultsNeverCatchAttachesAWindowApart)
+{
+    // Three attaches 1.25 s apart span the whole 2.5 s window, so no poll timing can count them.
+    for (const std::vector<double> &polls : {std::vector<double>{0.25}, {0.2, 0.3}, {0.1, 0.25, 0.4}})
+    {
+        for (int phase = 0; phase < 20; ++phase)
+        {
+            EXPECT_LT(firstTrigger(RecoveryPolicy{}, loopFrom(5.0 + phase * 0.0625, 1.25), 60, polls), 0)
+                << "poll " << polls.front() << ", phase " << phase;
+        }
     }
 }
 
@@ -250,7 +300,7 @@ TEST(RecoveryPolicy, DefaultsRetryAfterThirtySecondCooldown)
 
 TEST(RecoveryPolicy, FirstSamplesCannotTriggerBeforeAFullWindow)
 {
-    RecoveryPolicy fresh;
+    RecoveryPolicy fresh{kTwoSecondWindow};
     EXPECT_FALSE(fresh.observe(0, 50, true, false));
     EXPECT_FALSE(fresh.observe(1.0, 53, true, false));
     EXPECT_TRUE(fresh.observe(2.0, 53, true, false));
@@ -260,7 +310,7 @@ TEST(RecoveryPolicy, AttachesBeforeTheWindowDoNotCount)
 {
     // Polls every 260 ms and attaches 1.02 s apart: no 2 s window holds all three, although the
     // poll kept from before the window (13.00 at 15.08) precedes the first attach (13.01).
-    RecoveryPolicy irregular;
+    RecoveryPolicy irregular{kTwoSecondWindow};
     for (int poll = 0; poll <= 100; ++poll)
     {
         const double now = poll * 0.26;
@@ -277,7 +327,7 @@ TEST(RecoveryPolicy, AttachesBeforeTheWindowDoNotCount)
 
     // A 2.25 s gap between polls is under the stall limit, but the three attaches it hides
     // (11.8, 12.9, 14.0) span more than the window.
-    RecoveryPolicy gap;
+    RecoveryPolicy gap{kTwoSecondWindow};
     for (int poll = 0; poll <= 7; ++poll)
     {
         ASSERT_FALSE(gap.observe(10 + poll * 0.25, 50, true, false));
@@ -289,13 +339,13 @@ TEST(RecoveryPolicy, AttachesBeforeTheWindowDoNotCount)
 TEST(RecoveryPolicy, AttachesOnTheWindowStartCount)
 {
     // A poll exactly on the window's start is inside it, so rises after it count.
-    RecoveryPolicy boundary;
+    RecoveryPolicy boundary{kTwoSecondWindow};
     EXPECT_FALSE(boundary.observe(0, 50, true, false));
     EXPECT_FALSE(boundary.observe(1.0, 52, true, false));
     EXPECT_TRUE(boundary.observe(2.0, 53, true, false));
 
     // Without a poll at the start, rises before the first poll inside the window don't count.
-    RecoveryPolicy late;
+    RecoveryPolicy late{kTwoSecondWindow};
     EXPECT_FALSE(late.observe(0, 50, true, false));
     EXPECT_FALSE(late.observe(0.5, 51, true, false));
     EXPECT_FALSE(late.observe(2.4, 53, true, false));
@@ -339,12 +389,8 @@ TEST(RecoveryPolicy, RestoredFailurePauseLongerThanAnHourKeepsItsDeadline)
 
 TEST(RecoveryPolicy, TuningChangesDetectionAndLimits)
 {
-    // A slower loop (one attach every 1.2 s) is missed by the defaults but caught with a 3 s window.
-    std::vector<double> slow;
-    for (int n = 0; n < 12; ++n)
-    {
-        slow.push_back(3.0 + n * 1.2);
-    }
+    // A slower loop (one attach every 1.3 s) is missed by the defaults but caught with a 3 s window.
+    const std::vector<double> slow = loopFrom(3.0, 1.3);
     EXPECT_LT(firstTrigger(RecoveryPolicy{}, slow, 20), 0);
     EXPECT_GT(firstTrigger(RecoveryPolicy{Tuning{.windowSeconds = 3}}, slow, 20), 0);
 

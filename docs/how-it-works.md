@@ -21,20 +21,21 @@ The watcher reads every watched USB-C port every 250 ms, using only properties m
 publishes in the IORegistry. It doesn't talk to the controller while watching.
 
 Each port's `ConnectionCount` rises by one on every attach. A port is treated as stuck when the
-count rises at least **3 times** within a **2 second** window that the watcher observed in full,
-while no D6000 enumerates on it and every guard below passes. A healthy plug-in attaches once and a
-fumbled replug twice, so neither can trigger it.
+count rises at least **3 times** within a **2.5 second** window that the watcher observed in full,
+while no D6000 enumerates on it and every guard below passes. Only rises seen between two polls
+inside the window count, so an attach just before the window never does. A healthy plug-in
+attaches once and a fumbled replug twice, so neither can trigger it.
 
-With polls every 250 ms, the rule always catches a loop whose attaches are less than
-(window − 0.25 s) / (attaches − 1) apart, and never catches one whose attaches are window /
-(attaches − 1) or more apart:
+Polls are 250 ms apart plus the time each pass takes. With polls up to 300 ms apart, the rule
+always catches a loop whose attaches are up to (window − 0.3 s) / (attaches − 1) apart, and never
+catches one whose attaches are window / (attaches − 1) or more apart:
 
 | Settings | Always caught | Never caught |
 |---|---|---|
-| Default: 3 attaches in 2 s | attaches under 0.875 s apart | 1.0 s apart or more |
-| `--detect-window 2.5` | under 1.125 s apart | 1.25 s apart or more |
+| Default: 3 attaches in 2.5 s | attaches up to 1.1 s apart | 1.25 s apart or more |
+| `--detect-window 3` | up to 1.35 s apart | 1.5 s apart or more |
 
-On the Macs tested so far, a stuck loop re-attached every 0.65 to 0.91 s. If your log shows
+On the Macs tested so far, a stuck loop re-attached every 0.65 to 0.92 s. If your log shows
 a slower rhythm that isn't caught, widen the window and please report it.
 
 ## Act

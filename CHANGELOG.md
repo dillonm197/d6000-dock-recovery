@@ -41,7 +41,9 @@ First public release. Versions 0.1 to 0.6 were shared privately for testing.
   It is now reported as an error.
 - Detection could count an attach from just before the window, so 3 attaches up to one poll
   interval more than 2 s apart could trigger a restart. Only attaches seen between polls inside the
-  window count now.
+  window count now. Counting this strictly, a 2 s window missed a 0.91 s loop whenever polls ran
+  even 1 ms late, so the default window is now 2.5 s. It catches loops up to 1.1 s per attach with
+  polls up to 300 ms apart and never fires on attaches 1.25 s or more apart.
 - A failure pause longer than an hour (`--failure-pause` above 3600) ended early if the watcher
   restarted during it. The state file now keeps each port's last restart time at any age.
 

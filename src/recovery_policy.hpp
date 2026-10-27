@@ -21,8 +21,11 @@ struct Tuning
 {
     // A port is looping when its ConnectionCount rises at least minAttaches times inside a fully
     // observed window with no dock enumerating. A healthy plug-in attaches once and a fumbled
-    // replug twice, so the default of 3 attaches never fires on either.
-    double windowSeconds = 2.0;
+    // replug twice, so the default of 3 attaches never fires on either. Only attaches between two
+    // polls inside the window count, so a poll interval running a little over 250 ms shortens the
+    // counted span by up to one interval. 2.5 s still catches loops of up to 1.1 s per attach (the
+    // tested Macs loop every 0.65 to 0.92 s) and never fires on attaches 1.25 s or more apart.
+    double windowSeconds = 2.5;
     std::uint64_t minAttaches = 3;
     // How long to wait for the D6000 to enumerate after a restart before counting it as failed.
     double verifySeconds = 10.0;

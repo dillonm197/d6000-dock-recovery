@@ -97,11 +97,11 @@ TEST(Cli, RejectsOutOfRangeOrMalformedNumbers)
 
 TEST(Cli, SettingsChangeTheTuning)
 {
-    const ParseResult result = parse("--watch --all-ports --detect-window 2.5 --detect-attaches 4 --verify-timeout 20 "
+    const ParseResult result = parse("--watch --all-ports --detect-window 3 --detect-attaches 4 --verify-timeout 20 "
                                      "--cooldown 60 --max-resets-per-hour 3 --failure-pause 600");
     ASSERT_TRUE(result.options);
     const Tuning &tuning = result.options->tuning;
-    EXPECT_DOUBLE_EQ(tuning.windowSeconds, 2.5);
+    EXPECT_DOUBLE_EQ(tuning.windowSeconds, 3);
     EXPECT_EQ(tuning.minAttaches, 4U);
     EXPECT_DOUBLE_EQ(tuning.verifySeconds, 20);
     EXPECT_DOUBLE_EQ(tuning.cooldownSeconds, 60);
@@ -157,7 +157,7 @@ TEST(Cli, UsageListsEverySetting)
 
 TEST(Cli, DescribeNamesTheValuesInEffect)
 {
-    EXPECT_EQ(describe(Tuning{}), "settings: 3 attaches within 2 s, dock wait 10 s, cooldown 30 s, at most 6 "
+    EXPECT_EQ(describe(Tuning{}), "settings: 3 attaches within 2.5 s, dock wait 10 s, cooldown 30 s, at most 6 "
                                   "restarts per hour, 1800 s pause after 2 failed restarts in a row");
 }
 
