@@ -40,6 +40,10 @@ SavedState parseState(std::istream &input, double unixNow)
         {
             state[port].resetTimes.push_back(value);
         }
+        else if (key == "last")
+        {
+            state[port].lastReset = value;
+        }
     }
     return state;
 }
@@ -53,6 +57,10 @@ std::string formatState(const SavedState &state)
         for (const double at : saved.resetTimes)
         {
             text += std::format("reset {} {:.3f}\n", port, at);
+        }
+        if (saved.lastReset)
+        {
+            text += std::format("last {} {:.3f}\n", port, *saved.lastReset);
         }
     }
     return text;

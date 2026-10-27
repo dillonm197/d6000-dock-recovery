@@ -39,6 +39,11 @@ First public release. Versions 0.1 to 0.6 were shared privately for testing.
 
 - If macOS opened the controller interface without returning it, the restart was reported as sent.
   It is now reported as an error.
+- Detection could count an attach from just before the window, so 3 attaches up to one poll
+  interval more than 2 s apart could trigger a restart. Only attaches seen between polls inside the
+  window count now.
+- A failure pause longer than an hour (`--failure-pause` above 3600) ended early if the watcher
+  restarted during it. The state file now keeps each port's last restart time at any age.
 
 [Unreleased]: https://github.com/dillonm197/d6000-dock-recovery/compare/v0.7.0...HEAD
 [0.7.0]: https://github.com/dillonm197/d6000-dock-recovery/releases/tag/v0.7.0

@@ -330,6 +330,10 @@ class Watcher
                 watch.policy.restoreAttempt(at);
                 budget_.spend(at);
             }
+            if (saved.lastReset)
+            {
+                watch.policy.restoreLastAttempt(now - std::max(0.0, unixNow - *saved.lastReset));
+            }
         }
         std::ranges::sort(budget_.resets);
     }
@@ -346,6 +350,10 @@ class Watcher
             for (const double at : watch.policy.resets)
             {
                 record.resetTimes.push_back(unixNow - (now - at));
+            }
+            if (watch.policy.lastAttempt != kNever)
+            {
+                record.lastReset = unixNow - (now - watch.policy.lastAttempt);
             }
         }
         if (writeStateFile(kStatePath, formatState(saved)))

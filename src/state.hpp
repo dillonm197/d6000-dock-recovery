@@ -7,12 +7,14 @@
 // File format, one record per line:
 //   failures <port> <n>           consecutive failed restarts
 //   reset <port> <unix seconds>   a restart in the last hour
+//   last <port> <unix seconds>    the most recent restart, however old (times the failure pause)
 // Reading stops at the first malformed line; records for other port names are ignored.
 #ifndef D6000_STATE_HPP
 #define D6000_STATE_HPP
 
 #include <istream>
 #include <map>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -23,12 +25,14 @@ namespace d6000
 struct SavedPort
 {
     unsigned consecutiveFailures = 0;
-    std::vector<double> resetTimes; // Unix seconds, in file order
+    std::vector<double> resetTimes;  // Unix seconds, in file order
+    std::optional<double> lastReset; // Unix seconds
 };
 
 using SavedState = std::map<std::string, SavedPort>;
 
-// Parses the state format. Restarts older than an hour before unixNow are dropped.
+// Parses the state format. Restarts older than an hour before unixNow are dropped from resetTimes;
+// lastReset is kept at any age.
 [[nodiscard]] SavedState parseState(std::istream &input, double unixNow);
 
 // Formats the state, ports in name order.

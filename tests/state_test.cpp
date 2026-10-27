@@ -70,5 +70,26 @@ TEST(State, FormatRoundTrips)
     EXPECT_DOUBLE_EQ(parsed.at("Port-USB-C@2").resetTimes.front(), 1799999500.25);
 }
 
+TEST(State, LastResetSurvivesAtAnyAge)
+{
+    SavedState state;
+    state["Port-USB-C@1"] = {.consecutiveFailures = 2, .resetTimes = {}, .lastReset = kNow - 3670};
+    const std::string text = formatState(state);
+    EXPECT_EQ(text, "failures Port-USB-C@1 2\n"
+                    "last Port-USB-C@1 1799996330.000\n");
+    const SavedPort parsed = parseText(text).at("Port-USB-C@1");
+    EXPECT_EQ(parsed.consecutiveFailures, 2U);
+    EXPECT_TRUE(parsed.resetTimes.empty());
+    ASSERT_TRUE(parsed.lastReset.has_value());
+    EXPECT_DOUBLE_EQ(*parsed.lastReset, kNow - 3670);
+}
+
+TEST(State, FilesWithoutLastResetStillParse)
+{
+    const SavedState state = parseText("failures Port-USB-C@1 1\n"
+                                       "reset Port-USB-C@1 1799999000.000\n");
+    EXPECT_FALSE(state.at("Port-USB-C@1").lastReset.has_value());
+}
+
 } // namespace
 } // namespace d6000

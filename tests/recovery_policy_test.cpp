@@ -256,6 +256,52 @@ TEST(RecoveryPolicy, FirstSamplesCannotTriggerBeforeAFullWindow)
     EXPECT_TRUE(fresh.observe(2.0, 53, true, false));
 }
 
+TEST(RecoveryPolicy, AttachesBeforeTheWindowDoNotCount)
+{
+    // Polls every 260 ms and attaches 1.02 s apart: no 2 s window holds all three, although the
+    // poll kept from before the window (13.00 at 15.08) precedes the first attach (13.01).
+    RecoveryPolicy irregular;
+    for (int poll = 0; poll <= 100; ++poll)
+    {
+        const double now = poll * 0.26;
+        std::uint64_t count = 50;
+        for (const double attach : {13.010, 14.030, 15.050})
+        {
+            if (attach <= now)
+            {
+                ++count;
+            }
+        }
+        ASSERT_FALSE(irregular.observe(now, count, true, false)) << "t=" << now;
+    }
+
+    // A 2.25 s gap between polls is under the stall limit, but the three attaches it hides
+    // (11.8, 12.9, 14.0) span more than the window.
+    RecoveryPolicy gap;
+    for (int poll = 0; poll <= 7; ++poll)
+    {
+        ASSERT_FALSE(gap.observe(10 + poll * 0.25, 50, true, false));
+    }
+    EXPECT_FALSE(gap.observe(14, 53, true, false));
+    EXPECT_FALSE(gap.observe(14.25, 53, true, false));
+}
+
+TEST(RecoveryPolicy, AttachesOnTheWindowStartCount)
+{
+    // A poll exactly on the window's start is inside it, so rises after it count.
+    RecoveryPolicy boundary;
+    EXPECT_FALSE(boundary.observe(0, 50, true, false));
+    EXPECT_FALSE(boundary.observe(1.0, 52, true, false));
+    EXPECT_TRUE(boundary.observe(2.0, 53, true, false));
+
+    // Without a poll at the start, rises before the first poll inside the window don't count.
+    RecoveryPolicy late;
+    EXPECT_FALSE(late.observe(0, 50, true, false));
+    EXPECT_FALSE(late.observe(0.5, 51, true, false));
+    EXPECT_FALSE(late.observe(2.4, 53, true, false));
+    EXPECT_TRUE(late.observe(2.5, 54, true, false));
+}
+
 TEST(RecoveryPolicy, FailurePauseLiftsAfterItsDuration)
 {
     RecoveryPolicy suspended;
@@ -276,6 +322,19 @@ TEST(RecoveryPolicy, RestoredFailurePauseOnlyWhileRecent)
     RecoveryPolicy stale;
     stale.consecutiveFailures = 2;
     EXPECT_FALSE(stale.capped(0));
+}
+
+TEST(RecoveryPolicy, RestoredFailurePauseLongerThanAnHourKeepsItsDeadline)
+{
+    // Failed restarts at 0 and 30 with a 7200 s pause, restored at 3700: the hourly history has
+    // dropped both, but the last restart time keeps the pause until 7230.
+    RecoveryPolicy restored{Tuning{.failurePauseSeconds = 7200}};
+    restored.consecutiveFailures = 2;
+    restored.restoreLastAttempt(30);
+    EXPECT_TRUE(restored.capped(3700));
+    EXPECT_TRUE(restored.capped(7229));
+    EXPECT_FALSE(restored.capped(7230));
+    EXPECT_EQ(restored.consecutiveFailures, 0U);
 }
 
 TEST(RecoveryPolicy, TuningChangesDetectionAndLimits)

@@ -76,13 +76,22 @@ struct RecoveryPolicy
             samples.clear();
         }
         samples.push_back({.at = now, .count = count});
-        while (samples.size() > 1 && std::next(samples.begin())->at <= now - tuning.windowSeconds)
+        const double windowStart = now - tuning.windowSeconds;
+        while (samples.size() > 1 && std::next(samples.begin())->at <= windowStart)
         {
             samples.pop_front();
         }
-        return samples.size() >= 2 && now - samples.front().at >= tuning.windowSeconds &&
-               count >= samples.front().count && count - samples.front().count >= tuning.minAttaches &&
-               now >= nextAllowed && !capped(now);
+        if (samples.size() < 2 || samples.front().at > windowStart)
+        {
+            return false;
+        }
+        // The oldest sample proves the whole window was observed, but an attach counted from it may
+        // have happened before the window began. Only rises seen between polls inside the window
+        // are certain to fall in it, so count from the first sample at or after its start.
+        const Observation &baseline = *std::ranges::find_if(
+            samples, [windowStart](const Observation &sample) { return sample.at >= windowStart; });
+        return count >= baseline.count && count - baseline.count >= tuning.minAttaches && now >= nextAllowed &&
+               !capped(now);
     }
 
     // Records a restart sent now: starts the cooldown and counts a failure until recovered().
@@ -114,6 +123,13 @@ struct RecoveryPolicy
         resets.push_back(at);
         lastAttempt = std::max(lastAttempt, at);
         nextAllowed = std::max(nextAllowed, at + tuning.cooldownSeconds);
+    }
+
+    // Reloads the time of the last restart, kept apart from the hourly history so that a failure
+    // pause longer than an hour still ends at its original deadline after the watcher restarts.
+    void restoreLastAttempt(double at)
+    {
+        lastAttempt = std::max(lastAttempt, at);
     }
 
     // True while the hourly cap or the failure pause applies. The pause is not permanent: it lifts
