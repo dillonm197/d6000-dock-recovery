@@ -1,0 +1,12 @@
+d6000-dock-recovery
+Copyright 2026 d6000-dock-recovery contributors
+
+This product includes src/third_party/AppleHPMLib.h from AsahiLinux/macvdmtool
+(https://github.com/AsahiLinux/macvdmtool), Copyright 2019 osy86, licensed under the Apache
+License, Version 2.0. Its original copyright and license notice are preserved in that file.
+The Gaid FourCC follows the same project's published use. This product doesn't include
+macvdmtool's debug unlock, serial/DFU or firmware modification routines.
+
+Release binaries also include CLI11 and spdlog; their licenses are in THIRD-PARTY-NOTICES.txt.
+
+This is not a Dell, Synaptics or Apple product.
