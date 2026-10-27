@@ -1,0 +1,70 @@
+name: Compatibility report
+description: Tell us how it went on your Mac and dock, whether it worked or not.
+title: "[Compatibility] <Mac model>, <worked / didn't work>"
+labels: [compatibility]
+body:
+  - type: markdown
+    attributes:
+      value: Reports from Macs and docks that haven't been tested yet are the most useful contribution. Thank you!
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - It caught a stuck dock and the dock came back
+        - It restarted the port but the dock didn't come back
+        - The dock got stuck and it didn't react
+        - A port doesn't show structure=ok
+        - I haven't seen the dock get stuck yet
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Mac model
+      description: Output of `sysctl -n hw.model`
+      placeholder: Mac15,7
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      description: Output of `sw_vers -productVersion`
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: d6000-recovery version
+      description: Output of `/Library/PrivilegedHelperTools/local.d6000-recovery --version`
+    validations:
+      required: true
+  - type: input
+    id: dock
+    attributes:
+      label: Dock
+      description: Model (D6000 or D6000S) and firmware version, if you know it
+  - type: textarea
+    id: list
+    attributes:
+      label: Port list
+      description: Output of `/Library/PrivilegedHelperTools/local.d6000-recovery --list`, ideally while the dock is stuck
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: |
+        Output of `tail -n 200 /Library/Logs/D6000Recovery/events.log`, covering at least a minute before and after the event.
+        The log holds port names, counters and timings, not personal data, but please read it before posting.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Settings you changed, other devices on the Mac, how often the dock gets stuck.

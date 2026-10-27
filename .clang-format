@@ -1,0 +1,12 @@
+# Microsoft style (4-space indent, Allman braces, 120 columns), as clang-format defines it.
+BasedOnStyle: Microsoft
+Standard: c++20
+InsertBraces: true
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^"'
+    Priority: 1
+  - Regex: '^<(CoreFoundation|IOKit|CLI|spdlog|gtest)/'
+    Priority: 2
+  - Regex: '^<'
+    Priority: 3

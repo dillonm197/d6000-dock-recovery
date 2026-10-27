@@ -1,0 +1,67 @@
+name: False positive
+description: It restarted a port when nothing was wrong.
+title: "[False positive] <Mac model>"
+labels: [false-positive]
+body:
+  - type: markdown
+    attributes:
+      value: A restart when nothing was stuck is the most important thing to fix. Please include the log around it.
+  - type: textarea
+    id: doing
+    attributes:
+      label: What you were doing
+      description: For example plugging in the dock, plugging in another device, waking the Mac, nothing.
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device on that port
+      description: What was plugged into the port that was restarted?
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Mac model
+      description: Output of `sysctl -n hw.model`
+      placeholder: Mac15,7
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      description: Output of `sw_vers -productVersion`
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: d6000-recovery version
+      description: Output of `/Library/PrivilegedHelperTools/local.d6000-recovery --version`
+    validations:
+      required: true
+  - type: input
+    id: dock
+    attributes:
+      label: Dock
+      description: Model (D6000 or D6000S) and firmware version, if you know it
+  - type: textarea
+    id: list
+    attributes:
+      label: Port list
+      description: Output of `/Library/PrivilegedHelperTools/local.d6000-recovery --list`, ideally while the dock is stuck
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: |
+        Output of `tail -n 200 /Library/Logs/D6000Recovery/events.log`, covering at least a minute before and after the event.
+        The log holds port names, counters and timings, not personal data, but please read it before posting.
+      render: text
+    validations:
+      required: true
