@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- CodeQL code scanning (security-extended queries) of the C++ from a real macOS build and of the
+  workflows, on every pull request, push to `main` and weekly.
+
 ## [0.7.0] - 2026-10-27
 
 First public release. Versions 0.1 to 0.6 were shared privately for testing.
