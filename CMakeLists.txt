@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.28...4.4)
 
 project(
   d6000-recovery
-  VERSION 0.7.0
+  VERSION 0.7.1
   DESCRIPTION "Automatic recovery for Dell D6000 docks stuck in a USB-C attach loop on Apple-silicon Macs"
   HOMEPAGE_URL "https://github.com/dillonm197/d6000-dock-recovery"
   LANGUAGES CXX)
