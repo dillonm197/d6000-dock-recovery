@@ -6,8 +6,10 @@
 #include "recovery_policy.hpp"
 
 #include <cstdio>
+#include <fcntl.h>
 #include <format>
 #include <fstream>
+#include <sys/stat.h>
 #include <unistd.h>
 
 namespace d6000
@@ -17,6 +19,8 @@ namespace
 
 // A stored failure count at or above this is treated as corrupt and ignored.
 constexpr double kMaxStoredFailures = 100;
+// The file holds the rate limits, so only its owner (root) may write it, whatever the umask.
+constexpr mode_t kStateFileMode = 0644;
 
 } // namespace
 
@@ -75,12 +79,23 @@ SavedState readStateFile(const char *path, double unixNow)
 bool writeStateFile(const char *path, std::string_view contents)
 {
     const std::string temporary = std::string(path) + ".tmp";
+    // open() rather than fopen() to set the mode and refuse a symbolic link in place of the file;
+    // fchmod also covers a leftover temporary file, whose mode O_TRUNC would keep.
+    const int flags = O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW | O_CLOEXEC;
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    const int descriptor = ::open(temporary.c_str(), flags, kStateFileMode);
+    if (descriptor < 0)
+    {
+        return false;
+    }
     // A C stream rather than std::ofstream because fsync needs its descriptor; it is closed on every
     // path below.
     // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-    std::FILE *file = std::fopen(temporary.c_str(), "w");
+    std::FILE *file = ::fchmod(descriptor, kStateFileMode) == 0 ? ::fdopen(descriptor, "w") : nullptr;
     if (file == nullptr)
     {
+        ::close(descriptor);
+        static_cast<void>(std::remove(temporary.c_str()));
         return false;
     }
     bool ok = std::fwrite(contents.data(), 1, contents.size(), file) == contents.size();

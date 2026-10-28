@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-28
+
+### Security
+
+- The state file holding the rate limits was created with `fopen`, so its permissions depended on
+  the service's umask, and a umask of 0 would have let any local user edit it. It is now created
+  with mode 0644 whatever the umask, and never through a symbolic link. Under launchd's default
+  umask (022) the file was already root-writable only. Found by CodeQL.
+
 ### Added
 
 - CodeQL code scanning (security-extended queries) of the C++ from a real macOS build and of the
@@ -52,5 +61,6 @@ First public release. Versions 0.1 to 0.6 were shared privately for testing.
 - A failure pause longer than an hour (`--failure-pause` above 3600) ended early if the watcher
   restarted during it. The state file now keeps each port's last restart time at any age.
 
-[Unreleased]: https://github.com/dillonm197/d6000-dock-recovery/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/dillonm197/d6000-dock-recovery/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/dillonm197/d6000-dock-recovery/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/dillonm197/d6000-dock-recovery/releases/tag/v0.7.0

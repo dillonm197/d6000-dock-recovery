@@ -4,12 +4,47 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
+#include <filesystem>
+#include <format>
+#include <fstream>
+#include <iterator>
 #include <sstream>
+#include <string>
+#include <sys/stat.h>
 
 namespace d6000
 {
 namespace
 {
+
+// A fresh directory for one test, removed afterwards.
+struct ScratchDirectory
+{
+    ScratchDirectory()
+        : path(std::filesystem::temp_directory_path() /
+               std::format("d6000-state-test-{}", std::chrono::steady_clock::now().time_since_epoch().count()))
+    {
+        std::filesystem::create_directories(path);
+    }
+    ~ScratchDirectory()
+    {
+        std::error_code ignored;
+        std::filesystem::remove_all(path, ignored);
+    }
+    ScratchDirectory(const ScratchDirectory &) = delete;
+    ScratchDirectory &operator=(const ScratchDirectory &) = delete;
+    ScratchDirectory(ScratchDirectory &&) = delete;
+    ScratchDirectory &operator=(ScratchDirectory &&) = delete;
+
+    std::filesystem::path path;
+};
+
+std::string readText(const std::filesystem::path &path)
+{
+    std::ifstream file(path);
+    return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+}
 
 constexpr double kNow = 1'800'000'000.0;
 
@@ -89,6 +124,44 @@ TEST(State, FilesWithoutLastResetStillParse)
     const SavedState state = parseText("failures Port-USB-C@1 1\n"
                                        "reset Port-USB-C@1 1799999000.000\n");
     EXPECT_FALSE(state.at("Port-USB-C@1").lastReset.has_value());
+}
+
+TEST(State, WrittenFileIsOwnerWritableOnlyWhateverTheUmask)
+{
+    const ScratchDirectory scratch;
+    const std::filesystem::path state = scratch.path / "state";
+    const mode_t previous = ::umask(0);
+    const bool written = writeStateFile(state.c_str(), "failures Port-USB-C@1 0\n");
+    ::umask(previous);
+    ASSERT_TRUE(written);
+    struct stat info{};
+    ASSERT_EQ(::stat(state.c_str(), &info), 0);
+    EXPECT_EQ(info.st_mode & 0777, 0644U);
+    EXPECT_EQ(readText(state), "failures Port-USB-C@1 0\n");
+}
+
+TEST(State, LeftoverTemporaryFileGetsTheRestrictedMode)
+{
+    const ScratchDirectory scratch;
+    const std::filesystem::path state = scratch.path / "state";
+    std::ofstream(state.string() + ".tmp") << "old";
+    std::filesystem::permissions(state.string() + ".tmp", std::filesystem::perms::all);
+    ASSERT_TRUE(writeStateFile(state.c_str(), "failures Port-USB-C@1 1\n"));
+    struct stat info{};
+    ASSERT_EQ(::stat(state.c_str(), &info), 0);
+    EXPECT_EQ(info.st_mode & 0777, 0644U);
+}
+
+TEST(State, RefusesASymbolicLinkInPlaceOfTheTemporaryFile)
+{
+    const ScratchDirectory scratch;
+    const std::filesystem::path state = scratch.path / "state";
+    const std::filesystem::path target = scratch.path / "elsewhere";
+    std::ofstream(target) << "untouched";
+    std::filesystem::create_symlink(target, state.string() + ".tmp");
+    EXPECT_FALSE(writeStateFile(state.c_str(), "failures Port-USB-C@1 0\n"));
+    EXPECT_EQ(readText(target), "untouched");
+    EXPECT_FALSE(std::filesystem::exists(state));
 }
 
 } // namespace
